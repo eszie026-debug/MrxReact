@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WA Multi-Reaction Panel</title>
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: #0b141a; color: #e9edef; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
+    .container { background-color: #111b21; padding: 25px; border-radius: 12px; width: 100%; max-width: 500px; border: 1px solid #222d34; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+    h2 { color: #25d366; margin-top: 0; text-align: center; font-size: 1.5rem; }
+    .form-group { margin-bottom: 18px; }
+    label { display: block; margin-bottom: 6px; font-size: 0.85rem; color: #8696a0; }
+    input[type="url"] { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #2a3942; background: #202c33; color: #fff; outline: none; font-size: 0.95rem; }
+    input[type="url"]:focus { border-color: #00a884; }
+    
+    .reaction-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 8px; }
+    .reaction-item { background: #202c33; padding: 10px; border-radius: 8px; border: 1px solid #2a3942; display: flex; align-items: center; justify-content: space-between; }
+    .reaction-item span { font-size: 1.2rem; }
+    .reaction-item input { width: 70px; padding: 6px; border-radius: 6px; border: 1px solid #2a3942; background: #111b21; color: #fff; text-align: center; outline: none; }
+    .reaction-item input:focus { border-color: #00a884; }
+
+    .total-info { font-size: 0.9rem; color: #00a884; margin-top: 12px; text-align: right; font-weight: bold; }
+    .btn-submit { width: 100%; padding: 14px; background-color: #00a884; color: #111b21; font-weight: bold; font-size: 1rem; border: none; border-radius: 8px; cursor: pointer; margin-top: 15px; transition: 0.2s; }
+    .btn-submit:hover { background-color: #029071; }
+    .btn-submit:disabled { background-color: #2a3942; color: #8696a0; cursor: not-allowed; }
+    .status-box { margin-top: 15px; padding: 12px; background: #202c33; border-radius: 8px; display: none; font-size: 0.85rem; line-height: 1.4; border-left: 4px solid #00a884; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2>WA Reaction Booster</h2>
+  
+  <form id="boostForm">
+    <div class="form-group">
+      <label for="channelUrl">Link Tautan Pesan / Saluran WA</label>
+      <input type="url" id="channelUrl" placeholder="https://whatsapp.com/channel/..." required>
+    </div>
+
+    <div class="form-group">
+      <label>Tentukan Jumlah Reaksi Per Emoji (Maks total 500):</label>
+      <div class="reaction-grid">
+        <div class="reaction-item"><span>👍 Thumbs</span> <input type="number" class="count-input" data-emoji="👍" min="0" value="0"></div>
+        <div class="reaction-item"><span>❤️ Love</span> <input type="number" class="count-input" data-emoji="❤️" min="0" value="0"></div>
+        <div class="reaction-item"><span>😂 Laugh</span> <input type="number" class="count-input" data-emoji="😂" min="0" value="0"></div>
+        <div class="reaction-item"><span>🔥 Fire</span> <input type="number" class="count-input" data-emoji="🔥" min="0" value="0"></div>
+        <div class="reaction-item"><span>😮 Wow</span> <input type="number" class="count-input" data-emoji="😮" min="0" value="0"></div>
+        <div class="reaction-item"><span>🙏 Pray</span> <input type="number" class="count-input" data-emoji="🙏" min="0" value="0"></div>
+      </div>
+      <div class="total-info" id="totalDisplay">Total Reaksi: 0 / 500</div>
+    </div>
+
+    <button type="submit" class="btn-submit" id="btnExecute">Kirim Reaksi</button>
+  </form>
+
+  <div class="status-box" id="statusBox"></div>
+</div>
+
+<script>
+  const inputs = document.querySelectorAll('.count-input');
+  const totalDisplay = document.getElementById('totalDisplay');
+  const btnExecute = document.getElementById('btnExecute');
+  const statusBox = document.getElementById('statusBox');
+
+  function updateTotal() {
+    let total = 0;
+    inputs.forEach(input => {
+      total += parseInt(input.value) || 0;
+    });
+
+    totalDisplay.innerText = `Total Reaksi: ${total} / 500`;
+    if (total > 500) {
+      totalDisplay.style.color = '#f15c6d';
+      btnExecute.disabled = true;
+    } else if (total === 0) {
+      btnExecute.disabled = true;
+      totalDisplay.style.color = '#8696a0';
+    } else {
+      totalDisplay.style.color = '#00a884';
+      btnExecute.disabled = false;
+    }
+    return total;
+  }
+
+  inputs.forEach(input => input.addEventListener('input', updateTotal));
+  updateTotal();
+
+  document.getElementById('boostForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const channelUrl = document.getElementById('channelUrl').value;
+    const reactionMap = {};
+    let total = 0;
+
+    inputs.forEach(input => {
+      const count = parseInt(input.value) || 0;
+      const emoji = input.getAttribute('data-emoji');
+      if (count > 0) {
+        reactionMap[emoji] = count;
+        total += count;
+      }
+    });
+
+    if (total === 0) return;
+
+    btnExecute.disabled = true;
+    statusBox.style.display = 'block';
+    statusBox.innerHTML = 'Mengirim instruksi ke server backend...';
+
+    try {
+      const response = await fetch('http://localhost:3000/api/execute-reaction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channelUrl: channelUrl,
+          reactionMap: reactionMap,
+          totalReactions: total
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        statusBox.innerHTML = `<strong>Berhasil Diproses:</strong> ${result.message}<br><small>Job ID: ${result.jobId}</small>`;
+      } else {
+        statusBox.innerHTML = `<strong>Gagal:</strong> ${result.message}`;
+        btnExecute.disabled = false;
+      }
+    } catch (err) {
+      statusBox.innerHTML = '<strong>Error:</strong> Gagal terhubung ke server backend API.';
+      btnExecute.disabled = false;
+    }
+  });
+</script>
+
+</body>
+</html>
